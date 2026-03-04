@@ -291,6 +291,39 @@
   </div>
 </div>
 
+<!-- 编辑分集弹窗 -->
+<div class="modal-overlay" id="editEpisodeModal">
+  <div class="modal" style="width: 500px;">
+    <h3>编辑分集</h3>
+    <input type="hidden" id="editEpisodeId">
+    <input type="hidden" id="editEpisodeDramaId">
+    <div class="form-group">
+      <label>集数编号</label>
+      <input type="number" id="editEpisodeNumber" placeholder="输入集数编号" min="1" required>
+    </div>
+    <div class="form-group">
+      <label>标题</label>
+      <input id="editEpisodeTitle" placeholder="输入标题">
+    </div>
+    <div class="form-group">
+      <label>视频链接</label>
+      <input id="editEpisodeVideoUrl" placeholder="例如：/uploads/videos/xxx.mp4">
+      <small style="color:var(--text-dim);font-size:11px;margin-top:4px;display:block;">相对路径，以 /uploads/videos/ 开头</small>
+    </div>
+    <div class="form-group">
+      <label>是否免费</label>
+      <select id="editEpisodeIsFree">
+        <option value="1">🆓 免费</option>
+        <option value="0">💰 付费</option>
+      </select>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeEditEpisodeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveEpisodeEdit()">保存</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = 'http://localhost:3000';
 let categories = [];
@@ -451,9 +484,11 @@ async function loadEpisodes(dramaId) {
       <div class="ep-info">
         <div class="ep-title">${ep.title}</div>
         <div class="ep-meta">${formatSize(ep.file_size)} · ${ep.is_free ? '🆓免费' : '💰付费'} · <span class="badge badge-${ep.status}">${statusText(ep.status)}</span></div>
+        ${ep.original_filename ? `<div class="ep-meta" style="margin-top:4px;color:var(--text-dim);">📹 ${ep.original_filename}</div>` : ''}
         <div class="ep-meta" style="margin-top:4px;word-break:break-all;">🔗 ${ep.video_url ? `<a href="${API}${ep.video_url}" target="_blank" style="color:var(--primary);text-decoration:none;">${API}${ep.video_url}</a>` : '<span style="color:var(--text-dim)">未上传</span>'}</div>
       </div>
       <div class="ep-actions">
+        <button class="btn btn-primary btn-sm" onclick="editEpisode(${ep.id}, ${ep.drama_id})">编辑</button>
         ${ep.status !== 'published'
           ? `<button class="btn btn-success btn-sm" onclick="publishEpisode(${ep.id},${ep.drama_id})">发布</button>`
           : `<button class="btn btn-outline btn-sm" onclick="offlineEpisode(${ep.id},${ep.drama_id})">下架</button>`
@@ -485,7 +520,11 @@ async function uploadVideos() {
           <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${files[i].name}</div>
           <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${formatSize(files[i].size)}</div>
         </div>
-        <div id="${fileId}-status" style="font-size:12px;font-weight:600;color:var(--warning);">准备中...</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div id="${fileId}-episode" style="font-size:11px;color:var(--text-dim);display:none;"></div>
+          <div id="${fileId}-status" style="font-size:12px;font-weight:600;color:var(--warning);">准备中...</div>
+          <button id="${fileId}-retry" class="btn btn-sm btn-outline" style="display:none;" onclick="retryUpload('${fileId}', ${dramaId})">重试</button>
+        </div>
       </div>
       <div style="background:var(--sidebar-bg);height:6px;border-radius:3px;overflow:hidden;">
         <div id="${fileId}-bar" style="background:var(--primary);height:100%;width:0%;transition:width 0.3s;"></div>
@@ -502,8 +541,14 @@ async function uploadVideos() {
   
   for (const item of fileItems) {
     try {
-      await uploadSingleFile(dramaId, item.file, item.id);
+      const result = await uploadSingleFile(dramaId, item.file, item.id);
       successCount++;
+      // 显示集数信息
+      if (result && result.episode_number) {
+        const episodeEl = document.getElementById(`${item.id}-episode`);
+        episodeEl.textContent = `第${result.episode_number}集`;
+        episodeEl.style.display = 'block';
+      }
     } catch (error) {
       failCount++;
       document.getElementById(`${item.id}-status`).textContent = '❌ 失败';
@@ -511,13 +556,15 @@ async function uploadVideos() {
       const errorEl = document.getElementById(`${item.id}-error`);
       errorEl.textContent = `失败原因: ${error.message}`;
       errorEl.style.display = 'block';
+      // 显示重试按钮
+      document.getElementById(`${item.id}-retry`).style.display = 'inline-block';
     }
   }
 
   // 显示总结
   if (failCount === 0) {
     toast(`✅ ${successCount} 个视频上传成功`);
-    setTimeout(() => progressContainer.innerHTML = '', 3000);
+    setTimeout(() => progressContainer.innerHTML = '', 5000);
   } else {
     toast(`上传完成：${successCount} 成功，${failCount} 失败`, failCount > 0 ? 'error' : 'success');
   }
@@ -526,8 +573,53 @@ async function uploadVideos() {
   loadEpisodes(dramaId);
 }
 
+// 重试上传
+async function retryUpload(fileId, dramaId) {
+  const fileItem = document.getElementById(fileId);
+  if (!fileItem) return;
+  
+  // 获取原始文件（从 DOM 中存储的引用）
+  const file = fileItem._file;
+  if (!file) {
+    toast('无法重试：文件信息丢失', 'error');
+    return;
+  }
+  
+  // 重置状态
+  document.getElementById(`${fileId}-status`).textContent = '准备中...';
+  document.getElementById(`${fileId}-status`).style.color = 'var(--warning)';
+  document.getElementById(`${fileId}-bar`).style.width = '0%';
+  document.getElementById(`${fileId}-bar`).style.background = 'var(--primary)';
+  document.getElementById(`${fileId}-error`).style.display = 'none';
+  document.getElementById(`${fileId}-retry`).style.display = 'none';
+  
+  try {
+    const result = await uploadSingleFile(dramaId, file, fileId);
+    // 显示集数信息
+    if (result && result.episode_number) {
+      const episodeEl = document.getElementById(`${fileId}-episode`);
+      episodeEl.textContent = `第${result.episode_number}集`;
+      episodeEl.style.display = 'block';
+    }
+    toast('重试成功');
+    loadEpisodes(dramaId);
+  } catch (error) {
+    document.getElementById(`${fileId}-status`).textContent = '❌ 失败';
+    document.getElementById(`${fileId}-status`).style.color = 'var(--danger)';
+    const errorEl = document.getElementById(`${fileId}-error`);
+    errorEl.textContent = `失败原因: ${error.message}`;
+    errorEl.style.display = 'block';
+    document.getElementById(`${fileId}-retry`).style.display = 'inline-block';
+    toast('重试失败', 'error');
+  }
+}
+
 function uploadSingleFile(dramaId, file, fileId) {
   return new Promise((resolve, reject) => {
+    // 保存文件引用到 DOM，用于重试
+    const fileItem = document.getElementById(fileId);
+    if (fileItem) fileItem._file = file;
+    
     const formData = new FormData();
     formData.append('drama_id', dramaId);
     formData.append('video', file);
@@ -553,7 +645,7 @@ function uploadSingleFile(dramaId, file, fileId) {
           document.getElementById(`${fileId}-bar`).style.background = 'var(--success)';
           document.getElementById(`${fileId}-status`).textContent = '✅ 成功';
           document.getElementById(`${fileId}-status`).style.color = 'var(--success)';
-          resolve();
+          resolve(res.data); // 返回服务器响应数据（包含 episode_number）
         } else {
           // 服务器返回了错误信息
           reject(new Error(res.message || `HTTP ${xhr.status}: ${xhr.statusText}`));
@@ -596,6 +688,74 @@ async function deleteEpisode(id, dramaId) {
   if (!confirm('确定删除该集？')) return;
   await fetch(`${API}/admin/episodes/${id}`, { method: 'DELETE' });
   toast('删除成功'); loadEpisodes(dramaId);
+}
+
+// 编辑分集
+async function editEpisode(id, dramaId) {
+  // 获取分集信息
+  const res = await fetch(`${API}/admin/episodes/drama/${dramaId}`).then(r => r.json());
+  const episode = res.data.find(ep => ep.id === id);
+  if (!episode) {
+    toast('分集不存在', 'error');
+    return;
+  }
+  
+  // 填充表单
+  document.getElementById('editEpisodeId').value = id;
+  document.getElementById('editEpisodeDramaId').value = dramaId;
+  document.getElementById('editEpisodeNumber').value = episode.episode_number;
+  document.getElementById('editEpisodeTitle').value = episode.title;
+  document.getElementById('editEpisodeVideoUrl').value = episode.video_url || '';
+  document.getElementById('editEpisodeIsFree').value = episode.is_free ? '1' : '0';
+  
+  // 显示弹窗
+  document.getElementById('editEpisodeModal').classList.add('show');
+}
+
+function closeEditEpisodeModal() {
+  document.getElementById('editEpisodeModal').classList.remove('show');
+}
+
+async function saveEpisodeEdit() {
+  const id = document.getElementById('editEpisodeId').value;
+  const dramaId = document.getElementById('editEpisodeDramaId').value;
+  const episode_number = document.getElementById('editEpisodeNumber').value;
+  const title = document.getElementById('editEpisodeTitle').value;
+  const video_url = document.getElementById('editEpisodeVideoUrl').value;
+  const is_free = document.getElementById('editEpisodeIsFree').value;
+  
+  if (!episode_number || !title) {
+    toast('请填写集数和标题', 'error');
+    return;
+  }
+  
+  if (parseInt(episode_number) < 1) {
+    toast('集数编号不能小于1', 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API}/admin/episodes/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        episode_number: parseInt(episode_number),
+        title,
+        video_url,
+        is_free: parseInt(is_free)
+      })
+    }).then(r => r.json());
+    
+    if (res.code === 0) {
+      toast('保存成功');
+      closeEditEpisodeModal();
+      loadEpisodes(dramaId);
+    } else {
+      toast(res.message || '保存失败', 'error');
+    }
+  } catch (error) {
+    toast('保存失败：' + error.message, 'error');
+  }
 }
 
 function formatSize(bytes) {

@@ -43,15 +43,17 @@ router.post('/upload', videoUpload.single('video'), (req, res) => {
 
   const video_url = req.file ? `/uploads/videos/${req.file.filename}` : '';
   const file_size = req.file ? req.file.size : 0;
+  const original_filename = req.file ? req.file.originalname : '';
 
   const result = db.prepare(`
-    INSERT INTO episodes (drama_id, episode_number, title, video_url, file_size, is_free, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO episodes (drama_id, episode_number, title, video_url, file_size, is_free, sort_order, original_filename)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     parseInt(drama_id), epNum,
     title || `第${epNum}集`,
     video_url, file_size,
-    parseInt(is_free) || 0, epNum
+    parseInt(is_free) || 0, epNum,
+    original_filename
   );
 
   // 更新剧集总集数
@@ -124,11 +126,11 @@ router.put('/:id', (req, res) => {
     return res.status(404).json({ code: 404, message: '分集不存在' });
   }
 
-  const { title, episode_number, is_free, status, sort_order } = req.body;
+  const { title, episode_number, is_free, status, sort_order, video_url } = req.body;
 
   db.prepare(`
     UPDATE episodes SET
-      title = ?, episode_number = ?, is_free = ?, status = ?, sort_order = ?,
+      title = ?, episode_number = ?, is_free = ?, status = ?, sort_order = ?, video_url = ?,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `).run(
@@ -137,6 +139,7 @@ router.put('/:id', (req, res) => {
     parseInt(is_free) ?? episode.is_free,
     status || episode.status,
     parseInt(sort_order) ?? episode.sort_order,
+    video_url ?? episode.video_url,
     req.params.id
   );
 

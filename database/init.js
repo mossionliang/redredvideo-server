@@ -70,6 +70,7 @@ db.exec(`
     status TEXT DEFAULT 'draft' CHECK(status IN ('draft','published','offline')),
     play_count INTEGER DEFAULT 0,
     sort_order INTEGER DEFAULT 0,
+    original_filename TEXT DEFAULT '',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (drama_id) REFERENCES dramas(id) ON DELETE CASCADE
@@ -116,6 +117,18 @@ if (tagCount.count === 0) {
     }
   });
   insertMany();
+}
+
+// 数据库迁移：添加 original_filename 字段（如果不存在）
+try {
+  const columns = db.prepare("PRAGMA table_info(episodes)").all();
+  const hasOriginalFilename = columns.some(col => col.name === 'original_filename');
+  if (!hasOriginalFilename) {
+    db.exec("ALTER TABLE episodes ADD COLUMN original_filename TEXT DEFAULT ''");
+    console.log('✅ 数据库迁移：已添加 original_filename 字段');
+  }
+} catch (err) {
+  console.error('数据库迁移失败:', err.message);
 }
 
 module.exports = db;
