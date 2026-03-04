@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>红红短剧 · 运营后台</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: #ff4040;
+      --primary-dark: #cc3333;
+      --bg: #0f1117;
+      --sidebar-bg: #161822;
+      --card-bg: #1c1e2e;
+      --border: #2a2d3e;
+      --text: #e1e4ed;
+      --text-dim: #8b8fa3;
+      --success: #34d399;
+      --warning: #fbbf24;
+      --danger: #f87171;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
+
+    /* Sidebar */
+    .sidebar { width: 220px; background: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+    .sidebar-logo { padding: 20px; font-size: 18px; font-weight: 700; color: var(--primary); border-bottom: 1px solid var(--border); }
+    .sidebar-logo span { color: var(--text); font-weight: 400; font-size: 13px; display: block; margin-top: 4px; }
+    .sidebar-menu { flex: 1; padding: 12px 0; }
+    .menu-item { display: flex; align-items: center; padding: 12px 20px; cursor: pointer; color: var(--text-dim); transition: all 0.2s; font-size: 14px; }
+    .menu-item:hover { color: var(--text); background: rgba(255,64,64,0.05); }
+    .menu-item.active { color: var(--primary); background: rgba(255,64,64,0.1); border-right: 3px solid var(--primary); }
+    .menu-item .icon { width: 20px; margin-right: 10px; text-align: center; }
+
+    /* Main */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .header { height: 56px; background: var(--sidebar-bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 24px; justify-content: space-between; }
+    .header h2 { font-size: 16px; font-weight: 600; }
+    .content { flex: 1; overflow-y: auto; padding: 24px; }
+
+    /* Cards */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: var(--card-bg); border-radius: 12px; padding: 20px; border: 1px solid var(--border); }
+    .stat-card .label { font-size: 13px; color: var(--text-dim); margin-bottom: 8px; }
+    .stat-card .value { font-size: 28px; font-weight: 700; }
+    .stat-card .value.red { color: var(--primary); }
+
+    /* Table */
+    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
+    .toolbar-left { display: flex; gap: 8px; align-items: center; }
+    table { width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+    th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+    th { background: rgba(255,255,255,0.03); color: var(--text-dim); font-weight: 600; white-space: nowrap; }
+    td { color: var(--text); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* Buttons */
+    .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-outline { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+    .btn-outline:hover { border-color: var(--text); color: var(--text); }
+    .btn-success { background: var(--success); color: #000; }
+    .btn-danger { background: var(--danger); color: #000; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    /* Status badge */
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-draft { background: rgba(139,143,163,0.2); color: var(--text-dim); }
+    .badge-published { background: rgba(52,211,153,0.2); color: var(--success); }
+    .badge-offline { background: rgba(248,113,113,0.2); color: var(--danger); }
+    .badge-pending { background: rgba(251,191,36,0.2); color: var(--warning); }
+
+    /* Form */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 100; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: var(--card-bg); border-radius: 16px; padding: 24px; width: 560px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--border); }
+    .modal h3 { font-size: 18px; margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; outline: none; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--primary); }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .form-row { display: flex; gap: 12px; }
+    .form-row .form-group { flex: 1; }
+    .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+    /* Search */
+    .search-input { padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; width: 220px; outline: none; }
+    .search-input:focus { border-color: var(--primary); }
+    select.filter-select { padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; outline: none; }
+
+    /* Toast */
+    .toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 10px; color: #fff; font-size: 14px; z-index: 200; animation: slideIn 0.3s ease; }
+    .toast-success { background: var(--success); color: #000; }
+    .toast-error { background: var(--danger); color: #000; }
+    @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* Episodes panel */
+    .episode-item { display: flex; align-items: center; padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px; border: 1px solid var(--border); }
+    .episode-item .ep-num { width: 40px; height: 40px; background: var(--primary); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; margin-right: 12px; flex-shrink: 0; }
+    .episode-item .ep-info { flex: 1; }
+    .episode-item .ep-info .ep-title { font-size: 14px; }
+    .episode-item .ep-info .ep-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+    .episode-item .ep-actions { display: flex; gap: 6px; }
+
+    .upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 40px; text-align: center; color: var(--text-dim); cursor: pointer; transition: all 0.2s; }
+    .upload-zone:hover { border-color: var(--primary); color: var(--text); }
+    .upload-zone.dragover { border-color: var(--primary); background: rgba(255,64,64,0.05); }
+
+    .page-section { display: none; }
+    .page-section.active { display: block; }
+
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text-dim); }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    🎬 红红短剧
+    <span>运营管理后台</span>
+  </div>
+  <div class="sidebar-menu">
+    <div class="menu-item active" onclick="switchPage('dramas')"><span class="icon">📺</span> 剧集管理</div>
+    <div class="menu-item" onclick="switchPage('categories')"><span class="icon">📁</span> 分类管理</div>
+    <div class="menu-item" onclick="switchPage('tags')"><span class="icon">🏷️</span> 标签管理</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="header">
+    <h2 id="pageTitle">剧集管理</h2>
+    <span style="color: var(--text-dim); font-size: 13px;">http://localhost:3000</span>
+  </div>
+  <div class="content">
+
+    <!-- 剧集管理 -->
+    <div class="page-section active" id="page-dramas">
+      <div class="stats" id="dramaStats"></div>
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <input class="search-input" id="dramaSearch" placeholder="搜索剧集名称/作者..." oninput="loadDramas()">
+          <select class="filter-select" id="dramaStatusFilter" onchange="loadDramas()">
+            <option value="">全部状态</option>
+            <option value="draft">草稿</option>
+            <option value="published">已上架</option>
+            <option value="offline">已下架</option>
+          </select>
+          <select class="filter-select" id="dramaCategoryFilter" onchange="loadDramas()"></select>
+        </div>
+        <button class="btn btn-primary" onclick="showDramaForm()">+ 新建剧集</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>剧名</th><th>分类</th><th>作者</th><th>集数</th><th>状态</th><th>播放量</th><th>创建时间</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="dramaTable"></tbody>
+      </table>
+    </div>
+
+    <!-- 分类管理 -->
+    <div class="page-section" id="page-categories">
+      <div class="toolbar">
+        <div class="toolbar-left"><h3>分类列表</h3></div>
+        <button class="btn btn-primary" onclick="showCategoryForm()">+ 新建分类</button>
+      </div>
+      <table>
+        <thead><tr><th>ID</th><th>名称</th><th>排序</th><th>创建时间</th><th>操作</th></tr></thead>
+        <tbody id="categoryTable"></tbody>
+      </table>
+    </div>
+
+    <!-- 标签管理 -->
+    <div class="page-section" id="page-tags">
+      <div class="toolbar">
+        <div class="toolbar-left"><h3>标签列表</h3></div>
+        <button class="btn btn-primary" onclick="showTagForm()">+ 新建标签</button>
+      </div>
+      <div id="tagGroups"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 剧集表单弹窗 -->
+<div class="modal-overlay" id="dramaModal">
+  <div class="modal">
+    <h3 id="dramaFormTitle">新建剧集</h3>
+    <input type="hidden" id="dramaFormId">
+    <div class="form-group">
+      <label>剧集名称 *</label>
+      <input id="dramaTitle" placeholder="输入剧集名称">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>分类</label>
+        <select id="dramaCategory"></select>
+      </div>
+      <div class="form-group">
+        <label>作者/工作室</label>
+        <input id="dramaAuthor" placeholder="创作者名称">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>简介</label>
+      <textarea id="dramaDesc" placeholder="剧集简介..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>封面图</label>
+      <input type="file" id="dramaCover" accept="image/*">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>免费集数</label>
+        <input type="number" id="dramaFreeEp" value="3" min="0">
+      </div>
+      <div class="form-group">
+        <label>单集价格（元）</label>
+        <input type="number" id="dramaPrice" value="0" min="0" step="0.1">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeDramaForm()">取消</button>
+      <button class="btn btn-primary" onclick="saveDrama()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 分集管理弹窗 -->
+<div class="modal-overlay" id="episodeModal">
+  <div class="modal" style="width: 640px;">
+    <h3>分集管理 - <span id="epDramaTitle"></span></h3>
+    <input type="hidden" id="epDramaId">
+    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('videoFiles').click()">
+      📁 点击或拖拽视频文件到这里上传<br>
+      <span style="font-size:12px;">支持 mp4/mov/m4v，最大500MB</span>
+      <input type="file" id="videoFiles" multiple accept="video/*" style="display:none" onchange="uploadVideos()">
+    </div>
+    <div id="uploadProgress" style="margin: 12px 0;"></div>
+    <div id="episodeList" style="margin-top: 16px;"></div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeEpisodeModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 分类表单弹窗 -->
+<div class="modal-overlay" id="categoryModal">
+  <div class="modal" style="width: 400px;">
+    <h3>新建分类</h3>
+    <div class="form-group">
+      <label>分类名称</label>
+      <input id="categoryName" placeholder="输入分类名称">
+    </div>
+    <div class="form-group">
+      <label>排序（数字越小越靠前）</label>
+      <input type="number" id="categorySortOrder" value="0">
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeCategoryForm()">取消</button>
+      <button class="btn btn-primary" onclick="saveCategory()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 标签表单弹窗 -->
+<div class="modal-overlay" id="tagModal">
+  <div class="modal" style="width: 400px;">
+    <h3>新建标签</h3>
+    <div class="form-group">
+      <label>标签名称</label>
+      <input id="tagName" placeholder="输入标签名称">
+    </div>
+    <div class="form-group">
+      <label>分组</label>
+      <select id="tagGroup">
+        <option value="风格">风格</option>
+        <option value="题材">题材</option>
+        <option value="受众">受众</option>
+        <option value="通用">通用</option>
+      </select>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeTagForm()">取消</button>
+      <button class="btn btn-primary" onclick="saveTag()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:3000';
+let categories = [];
+
+// === Toast ===
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// === 页面切换 ===
+function switchPage(page) {
+  document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+  document.getElementById(`page-${page}`).classList.add('active');
+  event.currentTarget.classList.add('active');
+  const titles = { dramas: '剧集管理', categories: '分类管理', tags: '标签管理' };
+  document.getElementById('pageTitle').textContent = titles[page];
+  if (page === 'categories') loadCategories();
+  if (page === 'tags') loadTags();
+}
+
+// === 剧集管理 ===
+async function loadDramas() {
+  const keyword = document.getElementById('dramaSearch').value;
+  const status = document.getElementById('dramaStatusFilter').value;
+  const category_id = document.getElementById('dramaCategoryFilter').value;
+  let url = `${API}/admin/dramas?pageSize=100`;
+  if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
+  if (status) url += `&status=${status}`;
+  if (category_id) url += `&category_id=${category_id}`;
+
+  const res = await fetch(url).then(r => r.json());
+  const list = res.data.list;
+
+  // Stats
+  const allDramas = await fetch(`${API}/admin/dramas?pageSize=9999`).then(r => r.json());
+  const all = allDramas.data.list;
+  document.getElementById('dramaStats').innerHTML = `
+    <div class="stat-card"><div class="label">总剧集数</div><div class="value">${all.length}</div></div>
+    <div class="stat-card"><div class="label">已上架</div><div class="value" style="color:var(--success)">${all.filter(d=>d.status==='published').length}</div></div>
+    <div class="stat-card"><div class="label">草稿</div><div class="value" style="color:var(--warning)">${all.filter(d=>d.status==='draft').length}</div></div>
+    <div class="stat-card"><div class="label">总播放量</div><div class="value red">${all.reduce((s,d)=>s+d.play_count,0).toLocaleString()}</div></div>
+  `;
+
+  const tbody = document.getElementById('dramaTable');
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-dim)">暂无数据</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(d => `
+    <tr>
+      <td>${d.id}</td>
+      <td><strong>${d.title}</strong></td>
+      <td>${d.category_name || '-'}</td>
+      <td>${d.author || '-'}</td>
+      <td>${d.total_episodes}集</td>
+      <td><span class="badge badge-${d.status}">${statusText(d.status)}</span></td>
+      <td>${d.play_count.toLocaleString()}</td>
+      <td>${d.created_at?.slice(0,16) || '-'}</td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="editDrama(${d.id})">编辑</button>
+        <button class="btn btn-outline btn-sm" onclick="manageEpisodes(${d.id},'${esc(d.title)}')">分集</button>
+        ${d.status !== 'published'
+          ? `<button class="btn btn-success btn-sm" onclick="publishDrama(${d.id})">上架</button>`
+          : `<button class="btn btn-danger btn-sm" onclick="offlineDrama(${d.id})">下架</button>`
+        }
+        <button class="btn btn-danger btn-sm" onclick="deleteDrama(${d.id},'${esc(d.title)}')">删</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function statusText(s) {
+  return { draft:'草稿', pending:'待审核', published:'已上架', rejected:'已拒绝', offline:'已下架' }[s] || s;
+}
+function esc(s) { return (s||'').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+
+function showDramaForm(data) {
+  document.getElementById('dramaFormTitle').textContent = data ? '编辑剧集' : '新建剧集';
+  document.getElementById('dramaFormId').value = data?.id || '';
+  document.getElementById('dramaTitle').value = data?.title || '';
+  document.getElementById('dramaAuthor').value = data?.author || '';
+  document.getElementById('dramaDesc').value = data?.description || '';
+  document.getElementById('dramaFreeEp').value = data?.free_episodes ?? 3;
+  document.getElementById('dramaPrice').value = data?.price_per_episode ?? 0;
+  document.getElementById('dramaCategory').value = data?.category_id || '';
+  document.getElementById('dramaModal').classList.add('show');
+}
+function closeDramaForm() { document.getElementById('dramaModal').classList.remove('show'); }
+
+async function editDrama(id) {
+  const res = await fetch(`${API}/admin/dramas/${id}`).then(r => r.json());
+  showDramaForm(res.data);
+}
+
+async function saveDrama() {
+  const id = document.getElementById('dramaFormId').value;
+  const formData = new FormData();
+  formData.append('title', document.getElementById('dramaTitle').value);
+  formData.append('author', document.getElementById('dramaAuthor').value);
+  formData.append('description', document.getElementById('dramaDesc').value);
+  formData.append('category_id', document.getElementById('dramaCategory').value);
+  formData.append('free_episodes', document.getElementById('dramaFreeEp').value);
+  formData.append('price_per_episode', document.getElementById('dramaPrice').value);
+  const cover = document.getElementById('dramaCover').files[0];
+  if (cover) formData.append('cover', cover);
+
+  const url = id ? `${API}/admin/dramas/${id}` : `${API}/admin/dramas`;
+  const method = id ? 'PUT' : 'POST';
+  const res = await fetch(url, { method, body: formData }).then(r => r.json());
+  if (res.code === 0) {
+    toast(id ? '更新成功' : '创建成功');
+    closeDramaForm();
+    loadDramas();
+  } else {
+    toast(res.message, 'error');
+  }
+}
+
+async function publishDrama(id) {
+  await fetch(`${API}/admin/dramas/${id}/publish`, { method: 'POST' });
+  toast('上架成功'); loadDramas();
+}
+async function offlineDrama(id) {
+  await fetch(`${API}/admin/dramas/${id}/offline`, { method: 'POST' });
+  toast('下架成功'); loadDramas();
+}
+async function deleteDrama(id, title) {
+  if (!confirm(`确定删除「${title}」？此操作不可恢复！`)) return;
+  await fetch(`${API}/admin/dramas/${id}`, { method: 'DELETE' });
+  toast('删除成功'); loadDramas();
+}
+
+// === 分集管理 ===
+function manageEpisodes(dramaId, title) {
+  document.getElementById('epDramaId').value = dramaId;
+  document.getElementById('epDramaTitle').textContent = title;
+  document.getElementById('episodeModal').classList.add('show');
+  loadEpisodes(dramaId);
+}
+function closeEpisodeModal() { document.getElementById('episodeModal').classList.remove('show'); loadDramas(); }
+
+async function loadEpisodes(dramaId) {
+  const res = await fetch(`${API}/admin/episodes/drama/${dramaId}`).then(r => r.json());
+  const list = res.data;
+  const el = document.getElementById('episodeList');
+  if (list.length === 0) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">📭</div>暂无分集，请上传视频</div>';
+    return;
+  }
+  el.innerHTML = list.map(ep => `
+    <div class="episode-item">
+      <div class="ep-num">${ep.episode_number}</div>
+      <div class="ep-info">
+        <div class="ep-title">${ep.title}</div>
+        <div class="ep-meta">${formatSize(ep.file_size)} · ${ep.is_free ? '🆓免费' : '💰付费'} · <span class="badge badge-${ep.status}">${statusText(ep.status)}</span></div>
+        <div class="ep-meta" style="margin-top:4px;word-break:break-all;">🔗 ${ep.video_url ? `<a href="${API}${ep.video_url}" target="_blank" style="color:var(--primary);text-decoration:none;">${API}${ep.video_url}</a>` : '<span style="color:var(--text-dim)">未上传</span>'}</div>
+      </div>
+      <div class="ep-actions">
+        ${ep.status !== 'published'
+          ? `<button class="btn btn-success btn-sm" onclick="publishEpisode(${ep.id},${ep.drama_id})">发布</button>`
+          : `<button class="btn btn-outline btn-sm" onclick="offlineEpisode(${ep.id},${ep.drama_id})">下架</button>`
+        }
+        <button class="btn btn-danger btn-sm" onclick="deleteEpisode(${ep.id},${ep.drama_id})">删除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function uploadVideos() {
+  const dramaId = document.getElementById('epDramaId').value;
+  const files = document.getElementById('videoFiles').files;
+  if (!files.length) return;
+
+  const progress = document.getElementById('uploadProgress');
+  for (let i = 0; i < files.length; i++) {
+    progress.innerHTML = `<span style="color:var(--primary)">上传中 ${i+1}/${files.length}: ${files[i].name}...</span>`;
+    const formData = new FormData();
+    formData.append('drama_id', dramaId);
+    formData.append('video', files[i]);
+    await fetch(`${API}/admin/episodes/upload`, { method: 'POST', body: formData });
+  }
+  progress.innerHTML = `<span style="color:var(--success)">✅ ${files.length} 个视频上传完成</span>`;
+  document.getElementById('videoFiles').value = '';
+  loadEpisodes(dramaId);
+  setTimeout(() => progress.innerHTML = '', 3000);
+}
+
+async function publishEpisode(id, dramaId) {
+  await fetch(`${API}/admin/episodes/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: 'published' }) });
+  toast('分集已发布'); loadEpisodes(dramaId);
+}
+async function offlineEpisode(id, dramaId) {
+  await fetch(`${API}/admin/episodes/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: 'offline' }) });
+  toast('分集已下架'); loadEpisodes(dramaId);
+}
+async function deleteEpisode(id, dramaId) {
+  if (!confirm('确定删除该集？')) return;
+  await fetch(`${API}/admin/episodes/${id}`, { method: 'DELETE' });
+  toast('删除成功'); loadEpisodes(dramaId);
+}
+
+function formatSize(bytes) {
+  if (!bytes) return '0B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
+  return bytes.toFixed(1) + units[i];
+}
+
+// === 分类管理 ===
+async function loadCategories() {
+  const res = await fetch(`${API}/admin/categories`).then(r => r.json());
+  categories = res.data;
+  document.getElementById('categoryTable').innerHTML = categories.map(c => `
+    <tr>
+      <td>${c.id}</td>
+      <td>${c.name}</td>
+      <td>${c.sort_order}</td>
+      <td>${c.created_at?.slice(0,16) || '-'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteCategory(${c.id},'${esc(c.name)}')">删除</button></td>
+    </tr>
+  `).join('');
+
+  // 更新分类下拉
+  const catOptions = '<option value="">全部分类</option>' + categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  document.getElementById('dramaCategoryFilter').innerHTML = catOptions;
+  document.getElementById('dramaCategory').innerHTML = '<option value="0">未分类</option>' + categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+function showCategoryForm() { document.getElementById('categoryModal').classList.add('show'); }
+function closeCategoryForm() { document.getElementById('categoryModal').classList.remove('show'); }
+
+async function saveCategory() {
+  const name = document.getElementById('categoryName').value;
+  if (!name) { toast('请输入分类名称', 'error'); return; }
+  await fetch(`${API}/admin/categories`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ name, sort_order: parseInt(document.getElementById('categorySortOrder').value) || 0 })
+  });
+  toast('创建成功'); closeCategoryForm(); loadCategories();
+}
+
+async function deleteCategory(id, name) {
+  if (!confirm(`确定删除分类「${name}」？`)) return;
+  const res = await fetch(`${API}/admin/categories/${id}`, { method: 'DELETE' }).then(r => r.json());
+  if (res.code === 0) { toast('删除成功'); loadCategories(); }
+  else toast(res.message, 'error');
+}
+
+// === 标签管理 ===
+async function loadTags() {
+  const res = await fetch(`${API}/admin/categories/tags`).then(r => r.json());
+  const groups = res.data.groups;
+  document.getElementById('tagGroups').innerHTML = Object.entries(groups).map(([group, tags]) => `
+    <div style="margin-bottom:20px;">
+      <h4 style="margin-bottom:8px;color:var(--text-dim)">${group}</h4>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        ${tags.map(t => `
+          <span style="display:inline-flex;align-items:center;padding:6px 14px;background:var(--card-bg);border:1px solid var(--border);border-radius:20px;font-size:13px;">
+            ${t.name}
+            <span style="margin-left:8px;cursor:pointer;color:var(--danger)" onclick="deleteTag(${t.id})">✕</span>
+          </span>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function showTagForm() { document.getElementById('tagModal').classList.add('show'); }
+function closeTagForm() { document.getElementById('tagModal').classList.remove('show'); }
+
+async function saveTag() {
+  const name = document.getElementById('tagName').value;
+  if (!name) { toast('请输入标签名称', 'error'); return; }
+  const res = await fetch(`${API}/admin/categories/tags`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ name, group_name: document.getElementById('tagGroup').value })
+  }).then(r => r.json());
+  if (res.code === 0) { toast('创建成功'); closeTagForm(); loadTags(); }
+  else toast(res.message, 'error');
+}
+
+async function deleteTag(id) {
+  if (!confirm('确定删除该标签？')) return;
+  await fetch(`${API}/admin/categories/tags/${id}`, { method: 'DELETE' });
+  toast('删除成功'); loadTags();
+}
+
+// === 拖拽上传 ===
+document.addEventListener('DOMContentLoaded', () => {
+  const zone = document.getElementById('uploadZone');
+  if (zone) {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('dragover');
+      const dt = new DataTransfer();
+      for (const f of e.dataTransfer.files) dt.items.add(f);
+      document.getElementById('videoFiles').files = dt.files;
+      uploadVideos();
+    });
+  }
+});
+
+// === Init ===
+loadCategories();
+loadDramas();
+</script>
+
+</body>
+</html>
