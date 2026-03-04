@@ -466,6 +466,8 @@ function manageEpisodes(dramaId, title) {
   document.getElementById('epDramaId').value = dramaId;
   document.getElementById('epDramaTitle').textContent = title;
   document.getElementById('episodeModal').classList.add('show');
+  // 清空上传进度容器
+  document.getElementById('uploadProgress').innerHTML = '';
   loadEpisodes(dramaId);
 }
 function closeEpisodeModal() { document.getElementById('episodeModal').classList.remove('show'); loadDramas(); }

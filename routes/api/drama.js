@@ -32,7 +32,7 @@ router.get('/', (req, res) => {
     FROM dramas d
     LEFT JOIN categories c ON d.category_id = c.id
     WHERE ${where}
-    ORDER BY d.is_top DESC, d.sort_order DESC, d.published_at DESC
+    ORDER BY d.is_top DESC, d.sort_order DESC, d.id DESC
     LIMIT ? OFFSET ?
   `).all(...params, parseInt(pageSize), offset);
 
