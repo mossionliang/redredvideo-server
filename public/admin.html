@@ -469,18 +469,119 @@ async function uploadVideos() {
   const files = document.getElementById('videoFiles').files;
   if (!files.length) return;
 
-  const progress = document.getElementById('uploadProgress');
+  const progressContainer = document.getElementById('uploadProgress');
+  progressContainer.innerHTML = '';
+  
+  // 为每个文件创建进度显示
+  const fileItems = [];
   for (let i = 0; i < files.length; i++) {
-    progress.innerHTML = `<span style="color:var(--primary)">上传中 ${i+1}/${files.length}: ${files[i].name}...</span>`;
-    const formData = new FormData();
-    formData.append('drama_id', dramaId);
-    formData.append('video', files[i]);
-    await fetch(`${API}/admin/episodes/upload`, { method: 'POST', body: formData });
+    const fileId = `file-${Date.now()}-${i}`;
+    const fileItem = document.createElement('div');
+    fileItem.id = fileId;
+    fileItem.style.cssText = 'background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;';
+    fileItem.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="flex:1;overflow:hidden;">
+          <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${files[i].name}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${formatSize(files[i].size)}</div>
+        </div>
+        <div id="${fileId}-status" style="font-size:12px;font-weight:600;color:var(--warning);">准备中...</div>
+      </div>
+      <div style="background:var(--sidebar-bg);height:6px;border-radius:3px;overflow:hidden;">
+        <div id="${fileId}-bar" style="background:var(--primary);height:100%;width:0%;transition:width 0.3s;"></div>
+      </div>
+      <div id="${fileId}-error" style="font-size:11px;color:var(--danger);margin-top:6px;display:none;"></div>
+    `;
+    progressContainer.appendChild(fileItem);
+    fileItems.push({ id: fileId, file: files[i] });
   }
-  progress.innerHTML = `<span style="color:var(--success)">✅ ${files.length} 个视频上传完成</span>`;
+
+  // 逐个上传文件
+  let successCount = 0;
+  let failCount = 0;
+  
+  for (const item of fileItems) {
+    try {
+      await uploadSingleFile(dramaId, item.file, item.id);
+      successCount++;
+    } catch (error) {
+      failCount++;
+      document.getElementById(`${item.id}-status`).textContent = '❌ 失败';
+      document.getElementById(`${item.id}-status`).style.color = 'var(--danger)';
+      const errorEl = document.getElementById(`${item.id}-error`);
+      errorEl.textContent = `失败原因: ${error.message}`;
+      errorEl.style.display = 'block';
+    }
+  }
+
+  // 显示总结
+  if (failCount === 0) {
+    toast(`✅ ${successCount} 个视频上传成功`);
+    setTimeout(() => progressContainer.innerHTML = '', 3000);
+  } else {
+    toast(`上传完成：${successCount} 成功，${failCount} 失败`, failCount > 0 ? 'error' : 'success');
+  }
+  
   document.getElementById('videoFiles').value = '';
   loadEpisodes(dramaId);
-  setTimeout(() => progress.innerHTML = '', 3000);
+}
+
+function uploadSingleFile(dramaId, file, fileId) {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('drama_id', dramaId);
+    formData.append('video', file);
+
+    const xhr = new XMLHttpRequest();
+    
+    // 上传进度
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        const percent = Math.round((e.loaded / e.total) * 100);
+        document.getElementById(`${fileId}-bar`).style.width = percent + '%';
+        document.getElementById(`${fileId}-status`).textContent = `上传中 ${percent}%`;
+        document.getElementById(`${fileId}-status`).style.color = 'var(--primary)';
+      }
+    });
+
+    // 上传完成
+    xhr.addEventListener('load', () => {
+      try {
+        const res = JSON.parse(xhr.responseText);
+        if (xhr.status === 200 && res.code === 0) {
+          document.getElementById(`${fileId}-bar`).style.width = '100%';
+          document.getElementById(`${fileId}-bar`).style.background = 'var(--success)';
+          document.getElementById(`${fileId}-status`).textContent = '✅ 成功';
+          document.getElementById(`${fileId}-status`).style.color = 'var(--success)';
+          resolve();
+        } else {
+          // 服务器返回了错误信息
+          reject(new Error(res.message || `HTTP ${xhr.status}: ${xhr.statusText}`));
+        }
+      } catch (e) {
+        // 无法解析 JSON，使用 HTTP 状态信息
+        if (xhr.status === 200) {
+          reject(new Error('服务器响应格式错误'));
+        } else {
+          reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+        }
+      }
+    });
+
+    // 上传错误
+    xhr.addEventListener('error', () => {
+      reject(new Error('网络错误，请检查网络连接'));
+    });
+
+    // 上传超时
+    xhr.addEventListener('timeout', () => {
+      reject(new Error('上传超时，请重试'));
+    });
+
+    xhr.timeout = 300000; // 5分钟超时
+    xhr.open('POST', `${API}/admin/episodes/upload`);
+    xhr.send(formData);
+  });
 }
 
 async function publishEpisode(id, dramaId) {
